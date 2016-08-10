@@ -59,7 +59,7 @@ public class HuffNode implements Comparable<HuffNode>
 	public static HuffNode buildTree(List<String> words, List<Integer> freqs)
 	{
 		TreeSet<HuffNode> sortNodes = new TreeSet<HuffNode>();
-		int freqMin = 2;
+		int freqMin = 1;
 		int litFreq = 0;
 		for(int wordID=0 ; wordID<words.size() ; wordID++)
 		{

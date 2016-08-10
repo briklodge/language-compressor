@@ -34,7 +34,7 @@ public class TokenReader
 			{
 				int r = reader.read();
 				if(r < 0)
-					return null;
+					break;
 				if(r > 255)
 					continue;
 				if(accumcount > 0 && (!Character.isAlphabetic(r) || !Character.isAlphabetic(accum[0])))

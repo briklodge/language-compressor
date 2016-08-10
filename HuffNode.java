@@ -11,6 +11,8 @@ public class HuffNode implements Comparable<HuffNode>
 	private int freq; 
 	private HuffNode l;
 	private HuffNode r;
+	private int code;
+	
 	public HuffNode(String s, int freq)
 	{
 		this.s=s;
@@ -22,25 +24,30 @@ public class HuffNode implements Comparable<HuffNode>
 		this.r=r;
 		this.freq = l.freq+r.freq;
 	}
+	public void incFreq()
+	{
+		freq ++;
+	}
 	public int compareTo(HuffNode n)
 	{
 		if(freq > n.freq) return 1;
 		if(n==this) return 0;
 		else return -1;
 	}
-	public void poll(int prefix, Map<String,Integer> wordCodes)
+	public void updateCode(int prefix)
 	{
 		if(s!=null)
 		{
-			wordCodes.put(s, prefix);
+//			wordCodes.put(s, prefix);
+			code = prefix;
 		}
 		if(l!=null)
 		{
-			l.poll((prefix<<1)|0, wordCodes);
+			l.updateCode((prefix<<1)|0);
 		}
 		if(r!=null)
 		{
-			r.poll((prefix<<1)|1, wordCodes);
+			r.updateCode((prefix<<1)|1);
 		}
 	}
 	public String getValue()
@@ -55,28 +62,41 @@ public class HuffNode implements Comparable<HuffNode>
 	{
 		return r;
 	}
+	public int getCode()
+	{
+		return code;
+	}
+	public String toString()
+	{
+		if(s!=null) return s;
+		else return "{"+l.toString()+","+r.toString()+"}";
+	}
 	
-	public static HuffNode buildTree(List<String> words, List<Integer> freqs)
+	public static HuffNode buildTree(Map<String, HuffNode> wordNodes)
 	{
 		TreeSet<HuffNode> sortNodes = new TreeSet<HuffNode>();
-		int freqMin = 1;
-		int litFreq = 0;
-		for(int wordID=0 ; wordID<words.size() ; wordID++)
+		int freqMin = 2;
+//		int litFreq = 0;
+		HuffNode litNode = wordNodes.get("");
+		for(HuffNode node : wordNodes.values())
 		{
-			int freq = freqs.get(wordID);
+			if(node == litNode) continue;
+			
+			int freq = node.freq;
 			if(freq >= freqMin)
 			{
-				HuffNode node = new HuffNode(words.get(wordID), freq);
 				sortNodes.add(node);
 			}
 			else
 			{
-				litFreq += freq;
+//				litFreq += freq;
+				litNode.freq += freq;
 			}
 		}
-		System.out.println("litfreq "+litFreq);
-		HuffNode litNode = new HuffNode("", litFreq);
+//		System.out.println("litfreq "+litFreq);
+//		HuffNode litNode = new HuffNode("", litFreq);
 		sortNodes.add(litNode);
+		
 		
 		while(sortNodes.size() > 1)
 		{
@@ -87,6 +107,7 @@ public class HuffNode implements Comparable<HuffNode>
 			sortNodes.remove(sec);
 			sortNodes.add(merge);
 		}
+		sortNodes.first().updateCode(1);
 		return sortNodes.first();
 	}
 }

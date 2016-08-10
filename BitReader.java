@@ -44,4 +44,16 @@ public class BitReader
 		}
 		return bit;
 	}
+	
+	public int readBig8()
+	{
+		int b8 = 0;
+		for(int i=0 ; i<8 ; i++)
+		{
+			int b = readBig();
+			if(b < 0) return -1;
+			b8 = (b8<<1) | b;
+		}
+		return b8;
+	}
 }

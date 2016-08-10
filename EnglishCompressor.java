@@ -1,26 +1,26 @@
 package compression;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.TreeSet;
 
 public class EnglishCompressor
 {
 
-	HashMap<String,Integer> wordIDs = new HashMap<String,Integer>(); 
-	ArrayList<String> words = new ArrayList<String>();
-	ArrayList<Integer> wordFreq = new ArrayList<Integer>();
-	ArrayList<Integer> wordHuffcode = new ArrayList<Integer>();
-	HuffNode huffTree;
+	int totalwords=0;
 	
-	short[][] firstTrans = new short[4096][4096];
+	
+	ArrayList<String> words = new ArrayList<String>();
+	ArrayList<Integer> wordFreqs = new ArrayList<Integer>();
+	
+	HashMap<String,Integer> wordCodes = new HashMap<String,Integer>(); 
+	HuffNode huffTree;
+
+	// for optimization, not model
+	HashMap<String,Integer> wordIDs = new HashMap<String,Integer>(); 
+	
 	
 	public static void main(String[] args)
 	{
@@ -35,8 +35,11 @@ public class EnglishCompressor
 //		BitReader reader = new BitReader("/tmp/out.dat");
 //		for(int b=reader.readBig();b>=0;b=reader.readBig())
 //			System.out.println(b);
-		
+
+//		c.seed("/Users/kyle/projects/data/war_and_peace.txt");
 		c.seed("/Users/kyle/projects/data/Alice.txt");
+		c.seedFinish();
+		
 		c.encode("/Users/kyle/projects/data/Alice.txt","/Users/kyle/projects/data/Alice_encode.txt");
 		c.decode("/Users/kyle/projects/data/Alice_encode.txt","/Users/kyle/projects/data/Alice_decode.txt");
 	}
@@ -45,21 +48,39 @@ public class EnglishCompressor
 	{
 	}
 	
+	public int huffBitcount(int huffCode)
+	{
+		int bitcount = 20;
+		while((huffCode ^ (1<<bitcount)) > huffCode)
+			bitcount--;
+		return bitcount;
+	}
+	
 	public void encode(String inFile, String outFile)
 	{
 		TokenReader reader = new TokenReader(inFile);
 		BitWriter writer = new BitWriter(outFile);
-		String word;
+		String word = null;
 		while((word = reader.nextWord()) != null)
 		{
-			Integer wordID = wordIDs.get(word);
-			int huffCode = wordHuffcode.get(wordID);
-			int bitcount = 20;
-			while((huffCode ^ (1<<bitcount)) > huffCode)
-				bitcount--;
-//			System.out.println("e \""+word+"\" "+Integer.toBinaryString(huffCode & ((1<<bitcount)-1))+" "+bitcount);
-			writer.writeBig(huffCode, bitcount);
+			Integer code = wordCodes.get(word);
+			if(code == null)
+			{
+				code = wordCodes.get("");
+				writer.writeBig(code, huffBitcount(code));
+				byte[] strbytes = word.getBytes();
+				for(byte b8 : strbytes)
+					writer.writeBig(b8, 8);
+				writer.writeBig(0, 8);
+			}
+			else
+			{
+				writer.writeBig(code, huffBitcount(code));
+			}
 		}
+		int code = wordCodes.get("");
+		writer.writeBig(code, huffBitcount(code));
+		writer.writeBig(0, 8);
 		writer.close();
 	}
 	
@@ -71,7 +92,7 @@ public class EnglishCompressor
 			BufferedWriter writer = new BufferedWriter(new FileWriter(outFile));
 			int bit;
 			HuffNode cursor = huffTree;
-//			int huffCode = 0;
+//			int code = 1;
 //			int bitcount = 0;
 			while((bit = reader.readBig()) != -1)
 			{
@@ -79,14 +100,30 @@ public class EnglishCompressor
 					cursor = cursor.getLeft();
 				else
 					cursor = cursor.getRight();
-//				huffCode = (huffCode<<1) | bit; 
+//				code = (code<<1) | bit; 
 //				bitcount ++;
 				if(cursor.getValue() != null)
 				{
-//					System.out.println("d \""+cursor.getValue()+"\" "+Integer.toBinaryString(huffCode)+" "+bitcount);
-					writer.write(cursor.getValue());
+					if(cursor.getValue().equals(""))
+					{
+						byte[] string = new byte[256];
+						int strlen = 0;
+						int b8;
+						while((b8 = reader.readBig8()) > 0)
+						{
+							string[strlen++] = (byte)(b8 & 255);
+						}
+						if(strlen == 0)
+							break;
+						String lit = new String(string, 0, strlen);
+						writer.write(lit);
+					}
+					else
+					{
+						writer.write(cursor.getValue());
+					}
 					cursor = huffTree;
-//					huffCode = 0;
+//					code = 1;
 //					bitcount = 0;
 				}
 			}
@@ -102,8 +139,7 @@ public class EnglishCompressor
 	{
 		TokenReader reader = new TokenReader(fileName);
 		String word;
-		int totalwords=0;
-		Integer lastWordID = null;
+//		Integer lastWordID = null;
 		while((word = reader.nextWord()) != null)
 		{
 			totalwords++;
@@ -113,70 +149,30 @@ public class EnglishCompressor
 				wordID = words.size();
 				wordIDs.put(word, wordID);
 				words.add(word);
-				wordFreq.add(1);
+				wordFreqs.add(1);
 			}
 			else
 			{
-				wordFreq.set(wordID, wordFreq.get(wordID)+1);
+				wordFreqs.set(wordID, wordFreqs.get(wordID)+1);
 			}
 			
-			if(lastWordID != null)
-			{
-				firstTrans[lastWordID][wordID] ++;
-			}
-			lastWordID = wordID;
-			
+//			if(lastWordID != null)
+//			{
+//				firstTrans[lastWordID][wordID] ++;
+//			}
+//			lastWordID = wordID;
 		}
 		reader.close();
+	}
+
+	public void seedFinish()
+	{
+		huffTree = HuffNode.buildTree(words, wordFreqs);
+		huffTree.poll(1, wordCodes);
+		
 		System.out.println("total words " + totalwords);
 		System.out.println("unique words " + words.size());
-		
-		TreeSet<HuffNode> sortWords = new TreeSet<HuffNode>();
-		for(int wordID=0 ; wordID<words.size() ; wordID++)
-		{
-			HuffNode node = new HuffNode(words.get(wordID), wordFreq.get(wordID));
-			sortWords.add(node);
-		}
-		System.out.println("unique words " + sortWords.size());
-		while(sortWords.size() > 1)
-		{
-			HuffNode first = sortWords.first();
-			HuffNode sec = sortWords.higher(first);
-			HuffNode merge = new HuffNode(first,sec);
-			sortWords.remove(first);
-			sortWords.remove(sec);
-			sortWords.add(merge);
-		}
-		System.out.println("reduced "+sortWords.size());
-		huffTree = sortWords.first();
-		huffTree.poll(1,wordIDs,wordHuffcode);
-		System.out.println("polled "+wordHuffcode.size());
-		
-		
-//			for(int i=0 ; i<words.size() ; i++)
-//			{
-//				System.out.println(words.get(i)+" "+wordHuffcode.get(i));
-//			}
-		
-//			float num = 0;
-//			float dom = 0;
-//			for(int i=0 ; i<firstTrans.length ; i++)
-//			{
-//				int tot = 0;
-//				int max = 0;
-//				for(int j=0 ; j<firstTrans[0].length ; j++)
-//				{
-//					int k = firstTrans[i][j];
-//					tot += k;
-//					if(k > max) max=k;
-//				}
-//				num += max*100;
-//				dom += tot;
-//				if(tot > 0)
-//					System.out.print(max*100/tot + "% ");
-//			}
-//			System.out.println();
-//			System.out.println("avg "+num/dom+"%");
-		
+
+		wordIDs = null;
 	}
 }

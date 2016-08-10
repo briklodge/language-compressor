@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Arrays;
 
 public class TokenReader
 {
@@ -32,9 +33,11 @@ public class TokenReader
 			while(accumcount < 255)
 			{
 				int r = reader.read();
-				if(r < 0 || r > 255)
+				if(r < 0)
 					return null;
-				if(accumcount > 0 && !Character.isAlphabetic(r) || !Character.isAlphabetic(accum[0]))
+				if(r > 255)
+					continue;
+				if(accumcount > 0 && (!Character.isAlphabetic(r) || !Character.isAlphabetic(accum[0])))
 				{
 					word = new String(accum, 0, accumcount);
 					accum[0] = (char)r;
